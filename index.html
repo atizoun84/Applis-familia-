@@ -1,0 +1,691 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HomeGestAMOUSSOU - Gestion Familiale</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --primary-color: #2c3e50;
+            --accent-color: #27ae60;
+        }
+        
+        body { 
+            position: relative;
+            min-height: 100vh;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f4f7f6;
+        }
+        body::before {
+            content: "";
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background-image: url('papa.png');
+            background-size: cover;
+            background-position: center;
+            background-attachment: fixed;
+            filter: blur(8px);
+            z-index: -1;
+            opacity: 0.6;
+        }
+
+        .navbar-brand { font-weight: bold; color: var(--accent-color) !important; }
+        .card { border: none; border-radius: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); transition: 0.3s; background-color: rgba(255, 255, 255, 0.9); }
+        .stat-card { color: white; }
+        .bg-solde { background: linear-gradient(45deg, #2ecc71, #27ae60); }
+        .bg-dette { background: linear-gradient(45deg, #e74c3c, #c0392b) !important; }
+        .bg-depense { background: linear-gradient(45deg, #e74c3c, #c0392b); }
+        .bg-revenu { background: linear-gradient(45deg, #3498db, #2980b9); }
+        .btn-primary { background-color: var(--primary-color); border: none; }
+        
+        .sticky-summary {
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+            background-color: rgba(244, 247, 246, 0.95);
+            padding-top: 10px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #ddd;
+        }
+
+        #success-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(39, 174, 96, 0.95);
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+            color: white;
+            text-align: center;
+            padding: 20px;
+            animation: fadeIn 0.5s;
+        }
+        .success-content h2 { font-size: 2.5rem; font-weight: bold; margin-bottom: 20px; }
+        .checkmark { font-size: 100px; animation: scaleUp 0.5s; }
+
+        /* Badge Flottant */
+        .pending-badge {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 1050;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        .pending-badge:hover { transform: scale(1.1); }
+
+        /* Bouton Installation Flottant */
+        #pwa-install-float {
+            position: fixed;
+            bottom: 100px; /* Au-dessus du badge d'attente */
+            right: 20px;
+            z-index: 1050;
+            display: none;
+        }
+        
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes scaleUp { from { transform: scale(0); } to { transform: scale(1); } }
+        
+        /* Animation Synchro */
+        .sync-spin { animation: spin 1s linear infinite; }
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+
+<div id="success-overlay">
+    <div class="success-content">
+        <div class="checkmark">✔</div>
+        <h2>Soyons prudents pour la prospérité de la famille AMOUSSOU</h2>
+    </div>
+</div>
+
+<div id="pwa-install-float">
+    <button class="btn btn-warning shadow-lg rounded-pill fw-bold" onclick="triggerPWAInstall()">
+        📥 Installer l'App
+    </button>
+</div>
+
+<div class="pending-badge" id="floating-pending-btn" onclick="openApprovalModal()" style="display: none;">
+    <div class="bg-warning text-dark p-3 rounded-circle shadow-lg d-flex flex-column align-items-center justify-content-center" style="width: 70px; height: 70px; border: 2px solid white;">
+        <span id="pending-count" class="fw-bold h4 m-0">0</span>
+        <small style="font-size: 0.6rem;">Attentes</small>
+    </div>
+</div>
+
+<nav class="navbar navbar-dark bg-dark">
+    <div class="container d-flex justify-content-between align-items-center">
+        <div>
+            <span class="navbar-brand">🏠 HomeGestAMOUSSOU ☁️</span>
+            <span class="text-light d-none d-md-inline ms-2">Propriétaire : Atizoun Plateny AMOUSSOU</span>
+        </div>
+        <div id="current-date-header" class="text-white small fw-bold"></div>
+    </div>
+</nav>
+
+<div class="sticky-summary">
+    <div class="container">
+        <div class="row g-2 text-center">
+            <div class="col-4">
+                <div id="card-solde" class="card p-2 stat-card bg-solde">
+                    <small id="label-solde">Solde</small>
+                    <h5 id="display-solde" class="mb-0">0 CFA</h5>
+                </div>
+            </div>
+            <div class="col-4">
+                <div class="card p-2 stat-card bg-revenu">
+                    <small>Total Rev.</small>
+                    <h5 id="display-revenus-total" class="mb-0">0 CFA</h5>
+                </div>
+            </div>
+            <div class="col-4">
+                <div class="card p-2 stat-card bg-depense">
+                    <small>Total Dép.</small>
+                    <h5 id="display-depenses" class="mb-0">0 CFA</h5>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="container pb-5 mt-4">
+    <div class="row g-4">
+        <div class="col-lg-4">
+            <div class="card p-4 mb-4">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h5>👥 Membres & Catégories</h5>
+                    <div id="sync-container">
+                        <button id="sync-btn" class="btn btn-sm btn-outline-info" onclick="syncAll()">
+                            <span id="sync-icon">🔄</span> 
+                            <span id="sync-text">Synchro</span>
+                            <span id="sync-badge" class="badge bg-danger rounded-pill" style="display:none">0</span>
+                        </button>
+                    </div>
+                </div>
+                <hr>
+                <div class="input-group mb-3">
+                    <input type="text" id="member-name" class="form-control" placeholder="Nom du membre">
+                    <button class="btn btn-outline-success" onclick="addMember()">Ajouter</button>
+                </div>
+                <div class="input-group mb-3">
+                    <input type="text" id="cat-name" class="form-control" placeholder="Nouvelle catégorie">
+                    <select id="cat-type" class="form-select" style="max-width: 100px;">
+                        <option value="Revenu">Rev.</option>
+                        <option value="Dépense">Dép.</option>
+                    </select>
+                    <button class="btn btn-outline-primary" onclick="addCategory()">+</button>
+                </div>
+            </div>
+
+            <div class="card p-4">
+                <h5>💸 Nouvelle Opération</h5>
+                <hr>
+                <form id="transaction-form">
+                    <div class="mb-3">
+                        <label class="form-label">Type</label>
+                        <select id="t-type" class="form-select" onchange="updateCatDropdown()">
+                            <option value="Revenu">Revenu</option>
+                            <option value="Dépense" selected>Dépense</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Membre</label>
+                        <select id="t-member" class="form-select" required></select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Catégorie</label>
+                        <select id="t-cat" class="form-select" required></select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Montant (CFA)</label>
+                        <input type="number" id="t-amount" class="form-control" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100">Enregistrer l'opération</button>
+                </form>
+            </div>
+        </div>
+
+        <div class="col-lg-8">
+            <div class="card p-4 mb-4">
+                <h5>📊 Statistiques</h5>
+                <canvas id="financeChart" height="100"></canvas>
+            </div>
+
+            <div class="card p-4">
+                <div class="d-flex flex-wrap justify-content-between align-items-center mb-3">
+                    <h5 class="mb-0">📜 Historique <span id="filtered-total-badge" class="badge ms-2" style="font-size: 0.9rem;"></span></h5>
+                    <div>
+                        <button class="btn btn-sm btn-danger me-2" onclick="clearAllHistory()">Vider historique</button>
+                        <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#collapseHistory">Afficher / Masquer</button>
+                    </div>
+                </div>
+
+                <div class="row g-2 mb-3">
+                    <div class="col-md-3">
+                        <label class="small fw-bold">Période</label>
+                        <select id="filter-period" class="form-select form-select-sm" onchange="renderAll()">
+                            <option value="all">Toutes périodes</option>
+                            <option value="today">Aujourd'hui</option>
+                            <option value="week">Cette semaine</option>
+                            <option value="month">Ce mois</option>
+                            <option value="year">Cette année</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="small fw-bold">Membre</label>
+                        <select id="filter-member" class="form-select form-select-sm" onchange="renderAll()">
+                            <option value="all">Tous les membres</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="small fw-bold text-success">Filtrer Revenus</label>
+                        <select id="filter-cat-revenu" class="form-select form-select-sm border-success text-success" onchange="applyFilteredCategory('Revenu')">
+                            <option value="all">Toutes les recettes</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="small fw-bold text-danger">Filtrer Dépenses</label>
+                        <select id="filter-cat-depense" class="form-select form-select-sm border-danger text-danger" onchange="applyFilteredCategory('Dépense')">
+                            <option value="all">Toutes les charges</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="collapse" id="collapseHistory">
+                    <div class="table-responsive">
+                        <table class="table table-hover small">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Date & Heure</th>
+                                    <th>Membre</th>
+                                    <th>Catégorie</th>
+                                    <th>Type</th>
+                                    <th>Montant</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="transaction-table-body"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="approvalModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg" style="border-radius: 20px;">
+            <div class="modal-header bg-dark text-white" style="border-radius: 20px 20px 0 0;">
+                <h5 class="modal-title fw-bold">🛡️ Validation de Dépenses</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div id="pending-list-container"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // CONFIGURATION CLOUD
+    const CLOUD_URL = "https://script.google.com/macros/s/AKfycbwfms38bNSznahapR9jMN2YS-0Io3n-qAgJ_NAU4SiPzqgMQwAmp6W56U8DI7WUZB1Q/exec"; 
+    const SECRET_CODE = "11984 ";
+
+    let members = JSON.parse(localStorage.getItem('members')) || ["Famille"];
+    let categories = JSON.parse(localStorage.getItem('categories')) || [
+        {name: "Salaire", type: "Revenu"}, {name: "Alimentation", type: "Dépense"}, {name: "Loyer", type: "Dépense"}
+    ];
+    let transactions = JSON.parse(localStorage.getItem('transactions')) || [];
+    let pendingApproval = JSON.parse(localStorage.getItem('pendingApproval')) || [];
+    let syncQueueCount = 0; 
+    
+    let activeTypeFilter = 'all';
+    let activeCatFilter = 'all';
+
+    async function pushToCloud(sheetName, rowData) {
+        syncQueueCount++;
+        updateSyncDisplay();
+        try {
+            await fetch(CLOUD_URL, {
+                method: 'POST',
+                mode: 'no-cors',
+                body: JSON.stringify({ action: "add", sheet: sheetName, data: rowData })
+            });
+            syncQueueCount = Math.max(0, syncQueueCount - 1);
+            updateSyncDisplay();
+        } catch (e) { console.error("Cloud Error", e); }
+    }
+
+    function updateSyncDisplay() {
+        const badge = document.getElementById('sync-badge');
+        const btn = document.getElementById('sync-btn');
+        if (syncQueueCount > 0) {
+            badge.style.display = 'inline-block';
+            badge.innerText = syncQueueCount;
+            btn.classList.replace('btn-outline-info', 'btn-info');
+        } else {
+            badge.style.display = 'none';
+            btn.classList.replace('btn-info', 'btn-outline-info');
+        }
+    }
+
+    async function syncAll() {
+        const icon = document.getElementById('sync-icon');
+        const text = document.getElementById('sync-text');
+        icon.classList.add('sync-spin');
+        text.innerText = "En cours...";
+
+        try {
+            const response = await fetch(CLOUD_URL);
+            const data = await response.json();
+            if(data.Membres) members = data.Membres.map(m => m.Nom);
+            if(data.Categories) categories = data.Categories.map(c => ({name: c.Nom, type: c.Type}));
+            if(data.Transactions) transactions = data.Transactions.map(t => ({
+                id: t.ID, date: t.Date, member: t.Membre, category: t.Categorie, type: t.Type, amount: t.Montant
+            }));
+            
+            saveLocally();
+            renderAll();
+            
+            text.innerText = "Terminé !";
+            setTimeout(() => {
+                icon.classList.remove('sync-spin');
+                text.innerText = "Synchro";
+                updateSyncDisplay();
+            }, 1500);
+        } catch (e) { 
+            console.error("Sync Error", e);
+            text.innerText = "Erreur";
+            icon.classList.remove('sync-spin');
+        }
+    }
+
+    function saveLocally() {
+        localStorage.setItem('members', JSON.stringify(members));
+        localStorage.setItem('categories', JSON.stringify(categories));
+        localStorage.setItem('transactions', JSON.stringify(transactions));
+        localStorage.setItem('pendingApproval', JSON.stringify(pendingApproval));
+    }
+
+    function saveAndRefresh() {
+        saveLocally();
+        renderAll();
+    }
+
+    function addMember() {
+        const name = document.getElementById('member-name').value;
+        if(name) { 
+            members.push(name); 
+            pushToCloud("Membres", [name]);
+            document.getElementById('member-name').value = ''; 
+            saveAndRefresh(); 
+        }
+    }
+
+    function addCategory() {
+        const name = document.getElementById('cat-name').value;
+        const type = document.getElementById('cat-type').value;
+        if(name) { 
+            categories.push({name, type}); 
+            pushToCloud("Categories", [name, type]);
+            document.getElementById('cat-name').value = ''; 
+            saveAndRefresh(); 
+        }
+    }
+
+    function deleteTransaction(id) {
+        if(confirm("Supprimer cette opération ?")) {
+            transactions = transactions.filter(t => t.id !== id);
+            saveAndRefresh();
+        }
+    }
+
+    function clearAllHistory() {
+        if(confirm("Attention ! Voulez-vous vraiment supprimer TOUT l'historique ?")) {
+            transactions = [];
+            saveAndRefresh();
+        }
+    }
+
+    function showSuccessAnimation() {
+        const overlay = document.getElementById('success-overlay');
+        overlay.style.display = 'flex';
+        setTimeout(() => { overlay.style.display = 'none'; }, 2500);
+    }
+
+    function formatLongDate(dateObj) {
+        const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' };
+        return dateObj.toLocaleDateString('fr-FR', options);
+    }
+
+    document.getElementById('transaction-form').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const type = document.getElementById('t-type').value;
+        const amount = parseFloat(document.getElementById('t-amount').value);
+        const member = document.getElementById('t-member').value;
+        const category = document.getElementById('t-cat').value;
+        const now = new Date();
+
+        if (type === 'Dépense') {
+            const currentSolde = transactions.reduce((acc, t) => t.type === 'Revenu' ? acc + t.amount : acc - t.amount, 0);
+            const isDebt = (currentSolde - amount < 0);
+            
+            const pendingTrans = {
+                id: Date.now(),
+                date: formatLongDate(now),
+                member: member,
+                category: category,
+                type: type,
+                amount: amount,
+                isDebt: isDebt
+            };
+            pendingApproval.push(pendingTrans);
+            alert("Dépense envoyée en attente d'approbation.");
+            document.getElementById('t-amount').value = '';
+            saveAndRefresh();
+        } else {
+            const trans = {
+                id: Date.now(),
+                date: formatLongDate(now),
+                member: member,
+                category: category,
+                type: type,
+                amount: amount
+            };
+            transactions.unshift(trans);
+            pushToCloud("Transactions", [trans.id, trans.date, trans.member, trans.category, trans.type, trans.amount]);
+            document.getElementById('t-amount').value = '';
+            saveAndRefresh();
+            showSuccessAnimation();
+        }
+    });
+
+    function openApprovalModal() {
+        const container = document.getElementById('pending-list-container');
+        if (pendingApproval.length === 0) {
+            container.innerHTML = "<p class='text-center text-muted'>Aucune dépense en attente.</p>";
+        } else {
+            container.innerHTML = pendingApproval.map(p => `
+                <div class="card mb-3 p-3 border-start border-4 ${p.isDebt ? 'border-danger' : 'border-warning'} shadow-sm">
+                    <div class="d-flex justify-content-between">
+                        <h6 class="fw-bold mb-1">${p.member} - ${p.category}</h6>
+                        <span class="text-danger fw-bold">${p.amount} CFA</span>
+                    </div>
+                    <p class="small text-muted mb-2">${p.date}</p>
+                    ${p.isDebt ? '<div class="badge bg-danger mb-2">Attention : Dette</div>' : ''}
+                    <div class="d-flex gap-2">
+                        <button class="btn btn-sm btn-success flex-grow-1 fw-bold" onclick="approveRequest(${p.id})">Approuver</button>
+                        <button class="btn btn-sm btn-outline-danger" onclick="rejectRequest(${p.id})">Rejeter</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+        const modal = new bootstrap.Modal(document.getElementById('approvalModal'));
+        modal.show();
+    }
+
+    function approveRequest(id) {
+        const code = prompt("Veuillez saisir le code d'approbation :");
+        if (code === SECRET_CODE) {
+            const index = pendingApproval.findIndex(p => p.id === id);
+            const approved = pendingApproval.splice(index, 1)[0];
+            const trans = {
+                id: approved.id,
+                date: approved.date,
+                member: approved.member,
+                category: approved.category,
+                type: approved.type,
+                amount: approved.amount
+            };
+            transactions.unshift(trans);
+            pushToCloud("Transactions", [trans.id, trans.date, trans.member, trans.category, trans.type, trans.amount]);
+            bootstrap.Modal.getInstance(document.getElementById('approvalModal')).hide();
+            saveAndRefresh();
+            showSuccessAnimation();
+        } else if (code !== null) {
+            alert("Code incorrect ! Approbation refusée.");
+        }
+    }
+
+    function rejectRequest(id) {
+        if(confirm("Voulez-vous vraiment rejeter cette dépense ?")) {
+            pendingApproval = pendingApproval.filter(p => p.id !== id);
+            bootstrap.Modal.getInstance(document.getElementById('approvalModal')).hide();
+            saveAndRefresh();
+        }
+    }
+
+    function updateCatDropdown() {
+        const type = document.getElementById('t-type').value;
+        document.getElementById('t-cat').innerHTML = categories.filter(c => c.type === type)
+            .map(c => `<option value="${c.name}">${c.name}</option>`).join('');
+    }
+
+    function applyFilteredCategory(type) {
+        if (type === 'Revenu') {
+            activeTypeFilter = 'Revenu';
+            activeCatFilter = document.getElementById('filter-cat-revenu').value;
+            document.getElementById('filter-cat-depense').value = 'all';
+        } else {
+            activeTypeFilter = 'Dépense';
+            activeCatFilter = document.getElementById('filter-cat-depense').value;
+            document.getElementById('filter-cat-revenu').value = 'all';
+        }
+        if (activeCatFilter === 'all') activeTypeFilter = 'all';
+        renderAll();
+    }
+
+    function updateHeaderDate() {
+        const now = new Date();
+        const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+        document.getElementById('current-date-header').innerText = now.toLocaleDateString('fr-FR', options);
+    }
+
+    function renderAll() {
+        updateHeaderDate();
+        const floatingBtn = document.getElementById('floating-pending-btn');
+        const countSpan = document.getElementById('pending-count');
+        if (pendingApproval.length > 0) {
+            floatingBtn.style.display = 'block';
+            countSpan.innerText = pendingApproval.length;
+        } else {
+            floatingBtn.style.display = 'none';
+        }
+
+        document.getElementById('t-member').innerHTML = members.map(m => `<option value="${m}">${m}</option>`).join('');
+        const currentFMember = document.getElementById('filter-member').value;
+        document.getElementById('filter-member').innerHTML = `<option value="all">Tous les membres</option>` + members.map(m => `<option value="${m}">${m}</option>`).join('');
+        document.getElementById('filter-member').value = currentFMember;
+
+        const revFilter = document.getElementById('filter-cat-revenu');
+        const depFilter = document.getElementById('filter-cat-depense');
+        revFilter.innerHTML = `<option value="all">Toutes les recettes</option>` + categories.filter(c => c.type === 'Revenu').map(c => `<option value="${c.name}">${c.name}</option>`).join('');
+        depFilter.innerHTML = `<option value="all">Toutes les charges</option>` + categories.filter(c => c.type === 'Dépense').map(c => `<option value="${c.name}">${c.name}</option>`).join('');
+        
+        updateCatDropdown();
+
+        const fPeriod = document.getElementById('filter-period').value;
+        const fMember = document.getElementById('filter-member').value;
+        const now = new Date();
+
+        let filtered = transactions.filter(t => {
+            const tDate = new Date(t.id);
+            let matchPeriod = true;
+            if(fPeriod === 'today') matchPeriod = tDate.toDateString() === now.toDateString();
+            if(fPeriod === 'week') matchPeriod = (now - tDate) < 7 * 24 * 60 * 60 * 1000;
+            if(fPeriod === 'month') matchPeriod = tDate.getMonth() === now.getMonth() && tDate.getFullYear() === now.getFullYear();
+            if(fPeriod === 'year') matchPeriod = tDate.getFullYear() === now.getFullYear();
+            
+            let matchMember = fMember === 'all' || t.member === fMember;
+            let matchType = activeTypeFilter === 'all' || t.type === activeTypeFilter;
+            let matchCat = activeCatFilter === 'all' || t.category === activeCatFilter;
+            
+            return matchPeriod && matchMember && matchType && matchCat;
+        });
+
+        const tbody = document.getElementById('transaction-table-body');
+        tbody.innerHTML = filtered.map(t => `
+            <tr>
+                <td><small>${t.date}</small></td>
+                <td><span class="badge bg-secondary">${t.member}</span></td>
+                <td>${t.category}</td>
+                <td><span class="badge ${t.type === 'Revenu' ? 'bg-success' : 'bg-danger'}">${t.type}</span></td>
+                <td class="fw-bold">${t.amount} CFA</td>
+                <td><button class="btn btn-sm btn-danger" onclick="deleteTransaction(${t.id})">🗑️</button></td>
+            </tr>
+        `).join('');
+
+        let totalFiltré = filtered.reduce((acc, t) => t.type === 'Revenu' ? acc + t.amount : acc - t.amount, 0);
+        const badge = document.getElementById('filtered-total-badge');
+        badge.innerText = `Total filtré: ${totalFiltré} CFA`;
+        badge.className = `badge ms-2 ${totalFiltré >= 0 ? 'bg-success' : 'bg-danger'}`;
+
+        const totalRev = transactions.filter(t => t.type === 'Revenu').reduce((acc, t) => acc + parseFloat(t.amount), 0);
+        const totalDep = transactions.filter(t => t.type === 'Dépense').reduce((acc, t) => acc + parseFloat(t.amount), 0);
+        const solde = totalRev - totalDep;
+
+        const labelSolde = document.getElementById('label-solde');
+        const cardSolde = document.getElementById('card-solde');
+        if (solde < 0) {
+            labelSolde.innerText = "Dette";
+            cardSolde.classList.add('bg-dette');
+        } else {
+            labelSolde.innerText = "Solde";
+            cardSolde.classList.remove('bg-dette');
+        }
+        
+        document.getElementById('display-solde').innerText = solde + " CFA";
+        document.getElementById('display-revenus-total').innerText = totalRev + " CFA";
+        document.getElementById('display-depenses').innerText = totalDep + " CFA";
+
+        updateChart(totalRev, totalDep);
+        updateSyncDisplay();
+    }
+
+    let myChart;
+    function updateChart(rev, dep) {
+        const ctx = document.getElementById('financeChart').getContext('2d');
+        if (myChart) myChart.destroy();
+        myChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: ['Revenus', 'Dépenses'],
+                datasets: [{
+                    label: 'Montant en CFA',
+                    data: [rev, dep],
+                    backgroundColor: ['#3498db', '#e74c3c']
+                }]
+            },
+            options: { responsive: true, scales: { y: { beginAtZero: true } } }
+        });
+    }
+
+    syncAll();
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<link rel="manifest" href="./manifest.json">
+<script>
+  let deferredPrompt;
+  const installContainer = document.getElementById('pwa-install-float');
+
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('./sw.js')
+        .then(reg => console.log('Service Worker enregistré !'))
+        .catch(err => console.log('Erreur SW:', err));
+    });
+  }
+
+  // Logique du bouton d'installation flottant
+  window.addEventListener('beforeinstallprompt', (e) => {
+    // Empêche l'affichage automatique du navigateur
+    e.preventDefault();
+    // Stocke l'événement
+    deferredPrompt = e;
+    // Affiche le bouton car l'app n'est pas encore installée
+    installContainer.style.display = 'block';
+  });
+
+  async function triggerPWAInstall() {
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      console.log(`Réponse installation : ${outcome}`);
+      deferredPrompt = null;
+      installContainer.style.display = 'none';
+    }
+  }
+
+  window.addEventListener('appinstalled', () => {
+    console.log('Application installée !');
+    installContainer.style.display = 'none';
+  });
+</script>
+</body>
+</html>
