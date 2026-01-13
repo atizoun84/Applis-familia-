@@ -1,27 +1,34 @@
 const CACHE_NAME = 'homegest-v1';
-const ASSETS_TO_CACHE = [
+const ASSETS = [
   './',
-  './index.html',
-  './manifest.json',
+  './index.html', // Remplacez par le nom réel de votre fichier si différent
   './papa.png',
   'https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css',
-  'https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js',
-  'https://cdn.jsdelivr.net/npm/chart.js',
-  'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js',
-  'https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css'
+  'https://cdn.jsdelivr.net/npm/chart.js'
 ];
 
-// Installation du Service Worker et mise en cache des ressources
+// Installation du Service Worker et mise en cache des fichiers critiques
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(ASSETS_TO_CACHE);
+      return cache.addAll(ASSETS);
     })
   );
 });
 
-// Stratégie : Network First (Priorité Réseau) avec repli sur le Cache
-// Idéal pour une app synchronisée : on cherche les données fraîches, sinon on affiche l'interface offline
+// Activation et nettoyage des anciens caches
+self.addEventListener('activate', (event) => {
+  event.waitUntil(
+    caches.keys().then((keys) => {
+      return Promise.all(
+        keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))
+      );
+    })
+  );
+});
+
+// Stratégie "Network First" (Réseau d'abord) 
+// On essaie de récupérer les données à jour, sinon on utilise le cache
 self.addEventListener('fetch', (event) => {
   event.respondWith(
     fetch(event.request).catch(() => {
