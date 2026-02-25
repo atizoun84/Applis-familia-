@@ -13,6 +13,7 @@
         :root {
             --primary-color: #2c3e50;
             --accent-color: #27ae60;
+            --whatsapp-color: #25D366;
         }
         
         body { 
@@ -42,6 +43,8 @@
         .bg-depense { background: linear-gradient(45deg, #e74c3c, #c0392b); }
         .bg-revenu { background: linear-gradient(45deg, #3498db, #2980b9); }
         .btn-primary { background-color: var(--primary-color); border: none; }
+        .btn-whatsapp { background-color: var(--whatsapp-color); color: white; }
+        .btn-whatsapp:hover { background-color: #128C7E; color: white; }
         
         .sticky-summary {
             position: sticky;
@@ -51,6 +54,46 @@
             padding-top: 10px;
             padding-bottom: 10px;
             border-bottom: 1px solid #ddd;
+        }
+
+        .summary-container {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .stats-row {
+            flex-grow: 1;
+            margin-right: 15px;
+        }
+
+        .sync-float-container {
+            min-width: 120px;
+        }
+
+        #sync-float-btn {
+            width: 100%;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        #sync-float-btn.syncing {
+            pointer-events: none;
+            opacity: 0.8;
+        }
+
+        #sync-float-btn .sync-spin {
+            display: inline-block;
+            animation: spin 1s linear infinite;
+        }
+
+        #sync-float-badge {
+            position: absolute;
+            top: -5px;
+            right: -5px;
+            font-size: 0.7rem;
+            padding: 0.25rem 0.5rem;
         }
 
         #success-overlay {
@@ -70,7 +113,7 @@
         .success-content h2 { font-size: 2.5rem; font-weight: bold; margin-bottom: 20px; }
         .checkmark { font-size: 100px; animation: scaleUp 0.5s; }
 
-        /* Badge Flottant */
+        /* Badge Flottant pour approbation */
         .pending-badge {
             position: fixed;
             bottom: 20px;
@@ -90,12 +133,103 @@
             display: none;
         }
         
+        /* Style pour les modales Pro */
+        .modal-pro {
+            border-radius: 20px;
+            overflow: hidden;
+        }
+        
+        .modal-header-pro {
+            background: linear-gradient(135deg, var(--primary-color), #34495e);
+            color: white;
+            padding: 1.5rem;
+            border-bottom: none;
+        }
+        
+        .modal-body-pro {
+            padding: 2rem;
+            background: #f8f9fa;
+        }
+        
+        .transaction-detail-card {
+            background: white;
+            border-radius: 15px;
+            padding: 1.5rem;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+            margin-bottom: 1rem;
+        }
+        
+        .detail-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.75rem 0;
+            border-bottom: 1px solid #e9ecef;
+        }
+        
+        .detail-row:last-child {
+            border-bottom: none;
+        }
+        
+        .detail-label {
+            font-weight: 600;
+            color: #6c757d;
+        }
+        
+        .detail-value {
+            font-weight: 700;
+            font-size: 1.1rem;
+        }
+        
+        .amount-revenu { color: #27ae60; }
+        .amount-depense { color: #e74c3c; }
+        
+        .preview-box {
+            background: #e9ecef;
+            border-radius: 10px;
+            padding: 1rem;
+            font-family: monospace;
+            white-space: pre-wrap;
+            max-height: 200px;
+            overflow-y: auto;
+            margin: 1rem 0;
+        }
+        
+        .floating-whatsapp-btn {
+            position: fixed;
+            bottom: 100px;
+            left: 20px;
+            z-index: 1050;
+            box-shadow: 0 4px 15px rgba(37, 211, 102, 0.3);
+        }
+
+        .transaction-row {
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .transaction-row:hover {
+            background-color: rgba(0,0,0,0.05);
+        }
+        
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
         @keyframes scaleUp { from { transform: scale(0); } to { transform: scale(1); } }
         
         /* Animation Synchro */
         .sync-spin { animation: spin 1s linear infinite; }
         @keyframes spin { 100% { transform: rotate(360deg); } }
+
+        @media (max-width: 768px) {
+            .summary-container {
+                flex-direction: column;
+            }
+            .stats-row {
+                margin-right: 0;
+                margin-bottom: 10px;
+                width: 100%;
+            }
+            .sync-float-container {
+                width: 100%;
+            }
+        }
     </style>
 </head>
 <body>
@@ -110,6 +244,12 @@
 <div id="pwa-install-float">
     <button class="btn btn-warning shadow-lg rounded-pill fw-bold" onclick="triggerPWAInstall()">
         📥 Installer l'App
+    </button>
+</div>
+
+<div class="floating-whatsapp-btn" id="floating-whatsapp-btn" style="display: none;">
+    <button class="btn btn-whatsapp rounded-pill shadow-lg fw-bold px-4 py-3" onclick="copyAllTransactionsToWhatsApp()">
+        <span class="me-2">📊</span> Partager bilan
     </button>
 </div>
 
@@ -132,24 +272,35 @@
 
 <div class="sticky-summary">
     <div class="container">
-        <div class="row g-2 text-center">
-            <div class="col-4">
-                <div id="card-solde" class="card p-2 stat-card bg-solde">
-                    <small id="label-solde">Solde</small>
-                    <h5 id="display-solde" class="mb-0">0 CFA</h5>
+        <div class="summary-container">
+            <div class="stats-row">
+                <div class="row g-2 text-center">
+                    <div class="col-4">
+                        <div id="card-solde" class="card p-2 stat-card bg-solde">
+                            <small id="label-solde">Solde</small>
+                            <h5 id="display-solde" class="mb-0">0 CFA</h5>
+                        </div>
+                    </div>
+                    <div class="col-4">
+                        <div class="card p-2 stat-card bg-revenu">
+                            <small>Total Rev.</small>
+                            <h5 id="display-revenus-total" class="mb-0">0 CFA</h5>
+                        </div>
+                    </div>
+                    <div class="col-4">
+                        <div class="card p-2 stat-card bg-depense">
+                            <small>Total Dép.</small>
+                            <h5 id="display-depenses" class="mb-0">0 CFA</h5>
+                        </div>
+                    </div>
                 </div>
             </div>
-            <div class="col-4">
-                <div class="card p-2 stat-card bg-revenu">
-                    <small>Total Rev.</small>
-                    <h5 id="display-revenus-total" class="mb-0">0 CFA</h5>
-                </div>
-            </div>
-            <div class="col-4">
-                <div class="card p-2 stat-card bg-depense">
-                    <small>Total Dép.</small>
-                    <h5 id="display-depenses" class="mb-0">0 CFA</h5>
-                </div>
+            <div class="sync-float-container">
+                <button id="sync-float-btn" class="btn btn-info text-white fw-bold shadow-sm" onclick="syncAll()">
+                    <span id="sync-float-icon">🔄</span>
+                    <span id="sync-float-text">Synchro</span>
+                    <span id="sync-float-badge" class="badge bg-danger rounded-pill" style="display: none;">0</span>
+                </button>
             </div>
         </div>
     </div>
@@ -161,13 +312,7 @@
             <div class="card p-4 mb-4">
                 <div class="d-flex justify-content-between align-items-center">
                     <h5>👥 Membres & Catégories</h5>
-                    <div id="sync-container">
-                        <button id="sync-btn" class="btn btn-sm btn-outline-info" onclick="syncAll()">
-                            <span id="sync-icon">🔄</span> 
-                            <span id="sync-text">Synchro</span>
-                            <span id="sync-badge" class="badge bg-danger rounded-pill" style="display:none">0</span>
-                        </button>
-                    </div>
+                    <!-- Bouton de synchronisation supprimé d'ici -->
                 </div>
                 <hr>
                 <div class="input-group mb-3">
@@ -181,6 +326,11 @@
                         <option value="Dépense">Dép.</option>
                     </select>
                     <button class="btn btn-outline-primary" onclick="addCategory()">+</button>
+                </div>
+                <div class="mt-3">
+                    <button class="btn btn-danger w-100" onclick="resetAllData()">
+                        🔄 Réinitialiser toutes les données
+                    </button>
                 </div>
             </div>
 
@@ -196,12 +346,16 @@
                         </select>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Membre</label>
+                        <label class="form-label">Bénéficiaire</label>
                         <select id="t-member" class="form-select" required></select>
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Catégorie</label>
                         <select id="t-cat" class="form-select" required></select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Motif</label>
+                        <input type="text" id="t-motif" class="form-control" placeholder="Description de l'opération" required>
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Montant (CFA)</label>
@@ -264,16 +418,81 @@
                             <thead class="table-light">
                                 <tr>
                                     <th>Date & Heure</th>
-                                    <th>Membre</th>
+                                    <th>Bénéficiaire</th>
                                     <th>Catégorie</th>
+                                    <th>Motif</th>
                                     <th>Type</th>
                                     <th>Montant</th>
-                                    <th>Action</th>
+                                    <th>Actions</th>
                                 </tr>
                             </thead>
                             <tbody id="transaction-table-body"></tbody>
                         </table>
                     </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de détail transaction -->
+<div class="modal fade" id="transactionDetailModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content modal-pro border-0">
+            <div class="modal-header-pro">
+                <h5 class="modal-title fw-bold">
+                    <span class="me-2">📋</span> Détail de la transaction
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body-pro">
+                <div class="transaction-detail-card" id="transaction-detail-content">
+                    <!-- Le contenu sera injecté dynamiquement -->
+                </div>
+                
+                <div class="preview-box bg-light" id="whatsapp-preview">
+                    <!-- Prévisualisation WhatsApp -->
+                </div>
+                
+                <div class="d-flex gap-2 mt-3">
+                    <button class="btn btn-whatsapp flex-grow-1 py-2 fw-bold" onclick="copyToWhatsApp()">
+                        <span class="me-2">📱</span> Copier pour WhatsApp
+                    </button>
+                    <button class="btn btn-outline-secondary py-2" onclick="shareViaWhatsApp()">
+                        <span class="me-1">📤</span> Partager
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de bilan global -->
+<div class="modal fade" id="globalBalanceModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content modal-pro border-0">
+            <div class="modal-header-pro">
+                <h5 class="modal-title fw-bold">
+                    <span class="me-2">📊</span> Bilan financier complet
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body-pro">
+                <div class="transaction-detail-card" id="global-balance-content">
+                    <!-- Le contenu sera injecté dynamiquement -->
+                </div>
+                
+                <div class="preview-box bg-light" id="global-whatsapp-preview">
+                    <!-- Prévisualisation WhatsApp -->
+                </div>
+                
+                <div class="d-flex gap-2 mt-3">
+                    <button class="btn btn-whatsapp flex-grow-1 py-2 fw-bold" onclick="copyGlobalBalanceToWhatsApp()">
+                        <span class="me-2">📱</span> Copier pour WhatsApp
+                    </button>
+                    <button class="btn btn-outline-secondary py-2" onclick="shareGlobalBalance()">
+                        <span class="me-1">📤</span> Partager
+                    </button>
                 </div>
             </div>
         </div>
@@ -294,8 +513,27 @@
     </div>
 </div>
 
-<script>
-    const CLOUD_URL = "https://script.google.com/macros/s/AKfycbwfms38bNSznahapR9jMN2YS-0Io3n-qAgJ_NAU4SiPzqgMQwAmp6W56U8DI7WUZB1Q/exec"; 
+<script type="module">
+    // Import the functions you need from the SDKs you need
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
+    import { getDatabase, ref, set, push, get, child } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-database.js";
+
+    // Your web app's Firebase configuration
+    const firebaseConfig = {
+        apiKey: "AIzaSyDmn1JPcTjP26wo4lecBItHUEmL1pVHNUI",
+        authDomain: "comptabilite-famille-amoussou.firebaseapp.com",
+        databaseURL: "https://comptabilite-famille-amoussou-default-rtdb.europe-west1.firebasedatabase.app",
+        projectId: "comptabilite-famille-amoussou",
+        storageBucket: "comptabilite-famille-amoussou.firebasestorage.app",
+        messagingSenderId: "579972323664",
+        appId: "1:579972323664:web:87a957efaf3f1f8ed8f455"
+    };
+
+    // Initialize Firebase
+    const app = initializeApp(firebaseConfig);
+    const database = getDatabase(app);
+    const dbRef = ref(database);
+
     const SECRET_CODE = "11984 ";
 
     let members = JSON.parse(localStorage.getItem('members')) || ["Famille"];
@@ -304,62 +542,80 @@
     ];
     let transactions = JSON.parse(localStorage.getItem('transactions')) || [];
     let pendingApproval = JSON.parse(localStorage.getItem('pendingApproval')) || [];
-    let syncQueue = JSON.parse(localStorage.getItem('syncQueue')) || []; // File d'attente hors-ligne
+    let syncQueue = JSON.parse(localStorage.getItem('syncQueue')) || [];
     let syncQueueCount = syncQueue.length; 
     
     let activeTypeFilter = 'all';
     let activeCatFilter = 'all';
+    let currentTransactionForModal = null;
 
-    async function pushToCloud(sheetName, rowData) {
-        // Ajouter à la file d'attente locale d'abord
-        const syncItem = { sheet: sheetName, data: rowData, timestamp: Date.now() };
+    // Firebase sync functions
+    async function pushToFirebase(path, data) {
+        const syncItem = { path: path, data: data, timestamp: Date.now() };
         syncQueue.push(syncItem);
         saveLocally();
         updateSyncDisplay();
-
-        // Tenter l'envoi immédiat si en ligne
-        processSyncQueue();
+        // Ne pas appeler processSyncQueue ici pour éviter les problèmes de région
+        if (navigator.onLine) {
+            setTimeout(() => processSyncQueue(), 1000);
+        }
     }
 
     async function processSyncQueue() {
         if (!navigator.onLine || syncQueue.length === 0) return;
 
-        const icon = document.getElementById('sync-icon');
+        const icon = document.getElementById('sync-float-icon');
+        const text = document.getElementById('sync-float-text');
+        const btn = document.getElementById('sync-float-btn');
+        
         icon.classList.add('sync-spin');
+        text.innerText = "Synchro...";
+        btn.classList.add('syncing');
 
-        // On traite les éléments un par par
         const itemsToProcess = [...syncQueue];
+        let successCount = 0;
+        
         for (let item of itemsToProcess) {
             try {
-                await fetch(CLOUD_URL, {
-                    method: 'POST',
-                    mode: 'no-cors',
-                    body: JSON.stringify({ action: "add", sheet: item.sheet, data: item.data })
+                // Utiliser la référence correcte avec le chemin complet
+                const pathRef = ref(database, item.path);
+                const newItemRef = push(pathRef);
+                await set(newItemRef, {
+                    ...item.data,
+                    syncedAt: new Date().toISOString()
                 });
-                // Supprimer de la file si succès
+                
                 syncQueue = syncQueue.filter(i => i.timestamp !== item.timestamp);
+                successCount++;
                 saveLocally();
             } catch (e) {
-                console.log("Échec de synchronisation d'un élément, on réessaiera plus tard.");
-                break; // Stop le traitement si le réseau coupe
+                console.log("Échec de synchronisation:", e);
+                // Ne pas casser la boucle, continuer avec les suivants
             }
         }
         
         updateSyncDisplay();
         icon.classList.remove('sync-spin');
+        btn.classList.remove('syncing');
+        if (successCount > 0) {
+            text.innerText = "Synchro";
+        }
     }
 
     function updateSyncDisplay() {
         syncQueueCount = syncQueue.length;
-        const badge = document.getElementById('sync-badge');
-        const btn = document.getElementById('sync-btn');
+        const badge = document.getElementById('sync-float-badge');
+        const btn = document.getElementById('sync-float-btn');
+        
         if (syncQueueCount > 0) {
             badge.style.display = 'inline-block';
             badge.innerText = syncQueueCount;
-            btn.classList.replace('btn-outline-info', 'btn-info');
+            btn.classList.add('btn-warning');
+            btn.classList.remove('btn-info');
         } else {
             badge.style.display = 'none';
-            btn.classList.replace('btn-info', 'btn-outline-info');
+            btn.classList.remove('btn-warning');
+            btn.classList.add('btn-info');
         }
     }
 
@@ -369,22 +625,64 @@
             return;
         }
 
-        const icon = document.getElementById('sync-icon');
-        const text = document.getElementById('sync-text');
+        const icon = document.getElementById('sync-float-icon');
+        const text = document.getElementById('sync-float-text');
+        const btn = document.getElementById('sync-float-btn');
+        
         icon.classList.add('sync-spin');
         text.innerText = "En cours...";
+        btn.classList.add('syncing');
 
         try {
             // D'abord vider la file d'attente
             await processSyncQueue();
 
-            const response = await fetch(CLOUD_URL);
-            const data = await response.json();
-            if(data.Membres) members = data.Membres.map(m => m.Nom);
-            if(data.Categories) categories = data.Categories.map(c => ({name: c.Nom, type: c.Type}));
-            if(data.Transactions) transactions = data.Transactions.map(t => ({
-                id: t.ID, date: t.Date, member: t.Membre, category: t.Categorie, type: t.Type, amount: t.Montant
-            }));
+            // Ensuite récupérer les données du cloud
+            const snapshot = await get(dbRef);
+            if (snapshot.exists()) {
+                const data = snapshot.val();
+                
+                // Récupérer les membres
+                if (data.membres) {
+                    members = Object.values(data.membres)
+                        .filter(m => m && m.nom)
+                        .map(m => m.nom);
+                    if (members.length === 0) members = ["Famille"];
+                }
+                
+                // Récupérer les catégories
+                if (data.categories) {
+                    categories = Object.values(data.categories)
+                        .filter(c => c && c.nom && c.type)
+                        .map(c => ({
+                            name: c.nom,
+                            type: c.type
+                        }));
+                    if (categories.length === 0) {
+                        categories = [
+                            {name: "Salaire", type: "Revenu"}, 
+                            {name: "Alimentation", type: "Dépense"}, 
+                            {name: "Loyer", type: "Dépense"}
+                        ];
+                    }
+                }
+                
+                // Récupérer les transactions
+                if (data.transactions) {
+                    transactions = Object.entries(data.transactions)
+                        .filter(([_, t]) => t && t.date && t.member)
+                        .map(([id, t]) => ({
+                            id: id,
+                            date: t.date,
+                            timestamp: t.timestamp || Date.now(),
+                            member: t.member,
+                            motif: t.motif || "",
+                            category: t.category || "Non catégorisé",
+                            type: t.type || "Dépense",
+                            amount: parseFloat(t.amount) || 0
+                        }));
+                }
+            }
             
             saveLocally();
             renderAll();
@@ -393,41 +691,67 @@
             setTimeout(() => {
                 icon.classList.remove('sync-spin');
                 text.innerText = "Synchro";
+                btn.classList.remove('syncing');
                 updateSyncDisplay();
             }, 1500);
         } catch (e) { 
-            console.error("Sync Error", e);
+            console.error("Sync Error:", e);
             text.innerText = "Erreur";
             icon.classList.remove('sync-spin');
+            btn.classList.remove('syncing');
+            alert("Erreur de synchronisation. Vérifiez votre connexion et réessayez.");
         }
     }
 
     async function watchCloudUpdates() {
         if (navigator.onLine) {
             try {
-                const response = await fetch(CLOUD_URL);
-                const data = await response.json();
-                
-                if(data.Transactions && data.Transactions.length !== transactions.length) {
-                    transactions = data.Transactions.map(t => ({
-                        id: t.ID, date: t.Date, member: t.Membre, category: t.Categorie, type: t.Type, amount: t.Montant
-                    }));
-                    saveLocally();
-                    renderAll();
+                const snapshot = await get(dbRef);
+                if (snapshot.exists()) {
+                    const data = snapshot.val();
+                    
+                    if (data.transactions) {
+                        const cloudTransactions = Object.entries(data.transactions)
+                            .filter(([_, t]) => t && t.date)
+                            .map(([id, t]) => ({
+                                id: id,
+                                date: t.date,
+                                timestamp: t.timestamp || Date.now(),
+                                member: t.member,
+                                motif: t.motif || "",
+                                category: t.category,
+                                type: t.type,
+                                amount: t.amount
+                            }));
+                        
+                        if (cloudTransactions.length !== transactions.length) {
+                            transactions = cloudTransactions;
+                            saveLocally();
+                            renderAll();
+                        }
+                    }
                 }
-                // Si des éléments attendent, on tente de les envoyer
-                if (syncQueue.length > 0) processSyncQueue();
-            } catch (e) { console.log("Background sync silent fail"); }
+                
+                if (syncQueue.length > 0) {
+                    await processSyncQueue();
+                }
+            } catch (e) { 
+                console.log("Background sync:", e);
+            }
         }
         setTimeout(watchCloudUpdates, 30000); 
     }
 
     function saveLocally() {
-        localStorage.setItem('members', JSON.stringify(members));
-        localStorage.setItem('categories', JSON.stringify(categories));
-        localStorage.setItem('transactions', JSON.stringify(transactions));
-        localStorage.setItem('pendingApproval', JSON.stringify(pendingApproval));
-        localStorage.setItem('syncQueue', JSON.stringify(syncQueue));
+        try {
+            localStorage.setItem('members', JSON.stringify(members));
+            localStorage.setItem('categories', JSON.stringify(categories));
+            localStorage.setItem('transactions', JSON.stringify(transactions));
+            localStorage.setItem('pendingApproval', JSON.stringify(pendingApproval));
+            localStorage.setItem('syncQueue', JSON.stringify(syncQueue));
+        } catch (e) {
+            console.error("Erreur sauvegarde locale:", e);
+        }
     }
 
     function saveAndRefresh() {
@@ -436,21 +760,28 @@
     }
 
     function addMember() {
-        const name = document.getElementById('member-name').value;
+        const name = document.getElementById('member-name').value?.trim();
         if(name) { 
             members.push(name); 
-            pushToCloud("Membres", [name]);
+            pushToFirebase('membres', { 
+                nom: name, 
+                timestamp: Date.now() 
+            });
             document.getElementById('member-name').value = ''; 
             saveAndRefresh(); 
         }
     }
 
     function addCategory() {
-        const name = document.getElementById('cat-name').value;
+        const name = document.getElementById('cat-name').value?.trim();
         const type = document.getElementById('cat-type').value;
         if(name) { 
             categories.push({name, type}); 
-            pushToCloud("Categories", [name, type]);
+            pushToFirebase('categories', { 
+                nom: name, 
+                type: type, 
+                timestamp: Date.now() 
+            });
             document.getElementById('cat-name').value = ''; 
             saveAndRefresh(); 
         }
@@ -470,6 +801,54 @@
         }
     }
 
+    function resetAllData() {
+        if(confirm("⚠️ Êtes-vous sûr de vouloir réinitialiser TOUTES les données ?\nCette action supprimera définitivement toutes les données locales et dans le cloud.")) {
+            const code = prompt("Veuillez saisir le code de réinitialisation :");
+            if (code === SECRET_CODE) {
+                // Réinitialisation des données locales
+                members = ["Famille"];
+                categories = [
+                    {name: "Salaire", type: "Revenu"}, 
+                    {name: "Alimentation", type: "Dépense"}, 
+                    {name: "Loyer", type: "Dépense"}
+                ];
+                transactions = [];
+                pendingApproval = [];
+                syncQueue = [];
+                
+                saveLocally();
+                renderAll();
+                
+                // Réinitialisation Firebase
+                if (navigator.onLine) {
+                    set(ref(database, '/'), {
+                        membres: null,
+                        categories: null,
+                        transactions: null,
+                        reset: {
+                            timestamp: Date.now(),
+                            action: "reset_complete"
+                        }
+                    }).then(() => {
+                        console.log("Firebase réinitialisé avec succès");
+                    }).catch(error => {
+                        console.error("Erreur réinitialisation Firebase:", error);
+                        alert("Erreur lors de la réinitialisation cloud. Les données locales sont effacées.");
+                    });
+                }
+                
+                showSuccessAnimation();
+                alert("Toutes les données ont été réinitialisées avec succès !");
+                
+                setTimeout(() => {
+                    location.reload();
+                }, 1500);
+            } else if (code !== null) {
+                alert("Code incorrect ! Réinitialisation annulée.");
+            }
+        }
+    }
+
     function showSuccessAnimation() {
         const overlay = document.getElementById('success-overlay');
         overlay.style.display = 'flex';
@@ -477,26 +856,318 @@
     }
 
     function formatLongDate(dateObj) {
-        const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' };
+        const options = { 
+            weekday: 'long', 
+            year: 'numeric', 
+            month: 'long', 
+            day: 'numeric', 
+            hour: '2-digit', 
+            minute: '2-digit',
+            second: '2-digit'
+        };
         return dateObj.toLocaleDateString('fr-FR', options);
     }
 
+    function formatDateForDisplay(dateStr) {
+        try {
+            const date = new Date(dateStr);
+            return date.toLocaleDateString('fr-FR', {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit'
+            });
+        } catch {
+            return dateStr;
+        }
+    }
+
+    function formatTimestamp(timestamp) {
+        try {
+            const date = new Date(timestamp);
+            return date.toLocaleDateString('fr-FR', {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit'
+            });
+        } catch {
+            return 'Date inconnue';
+        }
+    }
+
+    // Fonction pour afficher les détails d'une transaction
+    function showTransactionDetails(transactionId) {
+        const transaction = transactions.find(t => t.id === transactionId);
+        if (!transaction) return;
+        
+        currentTransactionForModal = transaction;
+        
+        const detailContent = document.getElementById('transaction-detail-content');
+        const previewContent = document.getElementById('whatsapp-preview');
+        
+        const amountClass = transaction.type === 'Revenu' ? 'amount-revenu' : 'amount-depense';
+        const typeIcon = transaction.type === 'Revenu' ? '💰' : '💸';
+        const transactionDate = transaction.timestamp ? formatTimestamp(transaction.timestamp) : formatDateForDisplay(transaction.date);
+        
+        detailContent.innerHTML = `
+            <div class="detail-row">
+                <span class="detail-label">📅 Date opération</span>
+                <span class="detail-value">${transactionDate}</span>
+            </div>
+            <div class="detail-row">
+                <span class="detail-label">🕐 Horodatage</span>
+                <span class="detail-value">${transaction.timestamp ? new Date(transaction.timestamp).toLocaleString() : 'N/A'}</span>
+            </div>
+            <div class="detail-row">
+                <span class="detail-label">👤 Bénéficiaire</span>
+                <span class="detail-value">${transaction.member}</span>
+            </div>
+            <div class="detail-row">
+                <span class="detail-label">📂 Catégorie</span>
+                <span class="detail-value">${transaction.category}</span>
+            </div>
+            <div class="detail-row">
+                <span class="detail-label">📝 Motif</span>
+                <span class="detail-value">${transaction.motif || 'Non spécifié'}</span>
+            </div>
+            <div class="detail-row">
+                <span class="detail-label">📊 Type</span>
+                <span class="detail-value"><span class="badge ${transaction.type === 'Revenu' ? 'bg-success' : 'bg-danger'}">${transaction.type}</span></span>
+            </div>
+            <div class="detail-row">
+                <span class="detail-label">💵 Montant</span>
+                <span class="detail-value ${amountClass} fw-bold">${transaction.amount.toLocaleString()} CFA</span>
+            </div>
+        `;
+        
+        const previewText = `🏠 *HomeGestAMOUSSOU* - Détail transaction
+
+${typeIcon} *${transaction.type}*
+📅 ${transactionDate}
+👤 *Bénéficiaire:* ${transaction.member}
+📂 *Catégorie:* ${transaction.category}
+📝 *Motif:* ${transaction.motif || 'Non spécifié'}
+💵 *Montant:* ${transaction.amount.toLocaleString()} CFA
+🕐 ${transaction.timestamp ? new Date(transaction.timestamp).toLocaleString() : ''}
+
+🔐 Famille AMOUSSOU - Gestion prudente pour la prospérité`;
+        
+        previewContent.textContent = previewText;
+        
+        const modal = new bootstrap.Modal(document.getElementById('transactionDetailModal'));
+        modal.show();
+    }
+
+    // Fonction pour copier une transaction vers WhatsApp
+    function copyToWhatsApp() {
+        if (!currentTransactionForModal) return;
+        
+        const transaction = currentTransactionForModal;
+        const typeIcon = transaction.type === 'Revenu' ? '💰' : '💸';
+        const transactionDate = transaction.timestamp ? formatTimestamp(transaction.timestamp) : formatDateForDisplay(transaction.date);
+        
+        const text = `🏠 *HomeGestAMOUSSOU* - Détail transaction
+
+${typeIcon} *${transaction.type}*
+📅 ${transactionDate}
+👤 *Bénéficiaire:* ${transaction.member}
+📂 *Catégorie:* ${transaction.category}
+📝 *Motif:* ${transaction.motif || 'Non spécifié'}
+💵 *Montant:* ${transaction.amount.toLocaleString()} CFA
+🕐 ${transaction.timestamp ? new Date(transaction.timestamp).toLocaleString() : ''}
+
+🔐 Famille AMOUSSOU - Gestion prudente pour la prospérité`;
+        
+        navigator.clipboard.writeText(text).then(() => {
+            alert("✅ Copié dans le presse-papiers ! Vous pouvez maintenant coller dans WhatsApp.");
+        }).catch(() => {
+            alert("❌ Erreur lors de la copie");
+        });
+    }
+
+    // Fonction pour partager directement via WhatsApp
+    function shareViaWhatsApp() {
+        if (!currentTransactionForModal) return;
+        
+        const transaction = currentTransactionForModal;
+        const typeIcon = transaction.type === 'Revenu' ? '💰' : '💸';
+        const transactionDate = transaction.timestamp ? formatTimestamp(transaction.timestamp) : formatDateForDisplay(transaction.date);
+        
+        const text = `🏠 *HomeGestAMOUSSOU* - Détail transaction
+
+${typeIcon} *${transaction.type}*
+📅 ${transactionDate}
+👤 *Bénéficiaire:* ${transaction.member}
+📂 *Catégorie:* ${transaction.category}
+📝 *Motif:* ${transaction.motif || 'Non spécifié'}
+💵 *Montant:* ${transaction.amount.toLocaleString()} CFA
+🕐 ${transaction.timestamp ? new Date(transaction.timestamp).toLocaleString() : ''}
+
+🔐 Famille AMOUSSOU - Gestion prudente pour la prospérité`;
+        
+        const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(text)}`;
+        window.open(whatsappUrl, '_blank');
+    }
+
+    // Fonction pour afficher le bilan global
+    function showGlobalBalance() {
+        const totalRev = transactions.filter(t => t.type === 'Revenu')
+            .reduce((acc, t) => acc + (parseFloat(t.amount) || 0), 0);
+        const totalDep = transactions.filter(t => t.type === 'Dépense')
+            .reduce((acc, t) => acc + (parseFloat(t.amount) || 0), 0);
+        const solde = totalRev - totalDep;
+        
+        const content = document.getElementById('global-balance-content');
+        const preview = document.getElementById('global-whatsapp-preview');
+        
+        content.innerHTML = `
+            <div class="detail-row">
+                <span class="detail-label">💰 Total Revenus</span>
+                <span class="detail-value amount-revenu">${totalRev.toLocaleString()} CFA</span>
+            </div>
+            <div class="detail-row">
+                <span class="detail-label">💸 Total Dépenses</span>
+                <span class="detail-value amount-depense">${totalDep.toLocaleString()} CFA</span>
+            </div>
+            <div class="detail-row">
+                <span class="detail-label">⚖️ Solde</span>
+                <span class="detail-value ${solde >= 0 ? 'amount-revenu' : 'amount-depense'} fw-bold">${solde.toLocaleString()} CFA</span>
+            </div>
+            <div class="detail-row">
+                <span class="detail-label">📊 Nombre transactions</span>
+                <span class="detail-value">${transactions.length}</span>
+            </div>
+        `;
+        
+        const transactionsList = transactions.slice(0, 5).map(t => {
+            const icon = t.type === 'Revenu' ? '💰' : '💸';
+            const date = t.timestamp ? formatTimestamp(t.timestamp).split(' ')[0] : formatDateForDisplay(t.date).split(' ')[0];
+            return `${icon} ${date} - ${t.member}: ${t.amount.toLocaleString()} CFA\n   📝 ${t.motif || 'Non spécifié'}`;
+        }).join('\n\n');
+        
+        const previewText = `🏠 *HomeGestAMOUSSOU* - Bilan Financier
+
+📊 *RÉSUMÉ GLOBAL*
+💰 Revenus: ${totalRev.toLocaleString()} CFA
+💸 Dépenses: ${totalDep.toLocaleString()} CFA
+⚖️ Solde: ${solde.toLocaleString()} CFA
+📈 Transactions: ${transactions.length}
+
+📋 *Dernières opérations*
+${transactionsList || 'Aucune transaction'}
+
+🔐 Famille AMOUSSOU - Gestion prudente pour la prospérité`;
+        
+        preview.textContent = previewText;
+        
+        const modal = new bootstrap.Modal(document.getElementById('globalBalanceModal'));
+        modal.show();
+        
+        // Afficher le bouton flottant
+        document.getElementById('floating-whatsapp-btn').style.display = 'block';
+    }
+
+    // Fonction pour copier le bilan global
+    function copyGlobalBalanceToWhatsApp() {
+        const totalRev = transactions.filter(t => t.type === 'Revenu')
+            .reduce((acc, t) => acc + (parseFloat(t.amount) || 0), 0);
+        const totalDep = transactions.filter(t => t.type === 'Dépense')
+            .reduce((acc, t) => acc + (parseFloat(t.amount) || 0), 0);
+        const solde = totalRev - totalDep;
+        
+        const transactionsList = transactions.slice(0, 5).map(t => {
+            const icon = t.type === 'Revenu' ? '💰' : '💸';
+            const date = t.timestamp ? formatTimestamp(t.timestamp).split(' ')[0] : formatDateForDisplay(t.date).split(' ')[0];
+            return `${icon} ${date} - ${t.member}: ${t.amount.toLocaleString()} CFA\n   📝 ${t.motif || 'Non spécifié'}`;
+        }).join('\n\n');
+        
+        const text = `🏠 *HomeGestAMOUSSOU* - Bilan Financier
+
+📊 *RÉSUMÉ GLOBAL*
+💰 Revenus: ${totalRev.toLocaleString()} CFA
+💸 Dépenses: ${totalDep.toLocaleString()} CFA
+⚖️ Solde: ${solde.toLocaleString()} CFA
+📈 Transactions: ${transactions.length}
+
+📋 *Dernières opérations*
+${transactionsList || 'Aucune transaction'}
+
+🔐 Famille AMOUSSOU - Gestion prudente pour la prospérité`;
+        
+        navigator.clipboard.writeText(text).then(() => {
+            alert("✅ Bilan copié dans le presse-papiers !");
+        }).catch(() => {
+            alert("❌ Erreur lors de la copie");
+        });
+    }
+
+    // Fonction pour partager le bilan global
+    function shareGlobalBalance() {
+        const totalRev = transactions.filter(t => t.type === 'Revenu')
+            .reduce((acc, t) => acc + (parseFloat(t.amount) || 0), 0);
+        const totalDep = transactions.filter(t => t.type === 'Dépense')
+            .reduce((acc, t) => acc + (parseFloat(t.amount) || 0), 0);
+        const solde = totalRev - totalDep;
+        
+        const transactionsList = transactions.slice(0, 5).map(t => {
+            const icon = t.type === 'Revenu' ? '💰' : '💸';
+            const date = t.timestamp ? formatTimestamp(t.timestamp).split(' ')[0] : formatDateForDisplay(t.date).split(' ')[0];
+            return `${icon} ${date} - ${t.member}: ${t.amount.toLocaleString()} CFA\n   📝 ${t.motif || 'Non spécifié'}`;
+        }).join('\n\n');
+        
+        const text = `🏠 *HomeGestAMOUSSOU* - Bilan Financier
+
+📊 *RÉSUMÉ GLOBAL*
+💰 Revenus: ${totalRev.toLocaleString()} CFA
+💸 Dépenses: ${totalDep.toLocaleString()} CFA
+⚖️ Solde: ${solde.toLocaleString()} CFA
+📈 Transactions: ${transactions.length}
+
+📋 *Dernières opérations*
+${transactionsList || 'Aucune transaction'}
+
+🔐 Famille AMOUSSOU - Gestion prudente pour la prospérité`;
+        
+        const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(text)}`;
+        window.open(whatsappUrl, '_blank');
+    }
+
+    // Fonction pour copier toutes les transactions
+    function copyAllTransactionsToWhatsApp() {
+        showGlobalBalance();
+    }
+
+    // Gestionnaire d'événement pour le formulaire
     document.getElementById('transaction-form').addEventListener('submit', (e) => {
         e.preventDefault();
         const type = document.getElementById('t-type').value;
         const amount = parseFloat(document.getElementById('t-amount').value);
         const member = document.getElementById('t-member').value;
         const category = document.getElementById('t-cat').value;
+        const motif = document.getElementById('t-motif').value?.trim() || "";
         const now = new Date();
+        const timestamp = Date.now();
+
+        if (!member || !category || !motif || isNaN(amount) || amount <= 0) {
+            alert("Veuillez remplir tous les champs correctement.");
+            return;
+        }
 
         if (type === 'Dépense') {
             const currentSolde = transactions.reduce((acc, t) => t.type === 'Revenu' ? acc + t.amount : acc - t.amount, 0);
             const isDebt = (currentSolde - amount < 0);
             
             const pendingTrans = {
-                id: Date.now(),
+                id: timestamp,
                 date: formatLongDate(now),
+                timestamp: timestamp,
                 member: member,
+                motif: motif,
                 category: category,
                 type: type,
                 amount: amount,
@@ -505,19 +1176,31 @@
             pendingApproval.push(pendingTrans);
             alert("Dépense enregistrée localement en attente d'approbation.");
             document.getElementById('t-amount').value = '';
+            document.getElementById('t-motif').value = '';
             saveAndRefresh();
         } else {
             const trans = {
-                id: Date.now(),
+                id: timestamp,
                 date: formatLongDate(now),
+                timestamp: timestamp,
                 member: member,
+                motif: motif,
                 category: category,
                 type: type,
                 amount: amount
             };
             transactions.unshift(trans);
-            pushToCloud("Transactions", [trans.id, trans.date, trans.member, trans.category, trans.type, trans.amount]);
+            pushToFirebase('transactions', {
+                date: trans.date,
+                timestamp: trans.timestamp,
+                member: trans.member,
+                motif: trans.motif,
+                category: trans.category,
+                type: trans.type,
+                amount: trans.amount
+            });
             document.getElementById('t-amount').value = '';
+            document.getElementById('t-motif').value = '';
             saveAndRefresh();
             showSuccessAnimation();
         }
@@ -534,10 +1217,12 @@
                         <h6 class="fw-bold mb-1">${p.member} - ${p.category}</h6>
                         <span class="text-danger fw-bold">${p.amount} CFA</span>
                     </div>
-                    <p class="small text-muted mb-2">${p.date}</p>
+                    <p class="small text-muted mb-1">${p.date}</p>
+                    <p class="small text-muted mb-1">📝 ${p.motif}</p>
+                    <p class="small text-muted">🕐 ${new Date(p.timestamp).toLocaleString()}</p>
                     ${p.isDebt ? '<div class="badge bg-danger mb-2">Attention : Dette</div>' : ''}
                     <div class="d-flex gap-2">
-                        <button class="btn btn-sm btn-success flex-grow-1 fw-bold" onclick="approveRequest(${p.id})">Approuver ${!navigator.onLine ? '(Local)' : ''}</button>
+                        <button class="btn btn-sm btn-success flex-grow-1 fw-bold" onclick="approveRequest(${p.id})">Approuver</button>
                         <button class="btn btn-sm btn-outline-danger" onclick="rejectRequest(${p.id})">Rejeter</button>
                     </div>
                 </div>
@@ -551,17 +1236,29 @@
         const code = prompt("Veuillez saisir le code d'approbation :");
         if (code === SECRET_CODE) {
             const index = pendingApproval.findIndex(p => p.id === id);
+            if (index === -1) return;
+            
             const approved = pendingApproval.splice(index, 1)[0];
             const trans = {
                 id: approved.id,
                 date: approved.date,
+                timestamp: approved.timestamp,
                 member: approved.member,
+                motif: approved.motif,
                 category: approved.category,
                 type: approved.type,
                 amount: approved.amount
             };
             transactions.unshift(trans);
-            pushToCloud("Transactions", [trans.id, trans.date, trans.member, trans.category, trans.type, trans.amount]);
+            pushToFirebase('transactions', {
+                date: trans.date,
+                timestamp: trans.timestamp,
+                member: trans.member,
+                motif: trans.motif,
+                category: trans.category,
+                type: trans.type,
+                amount: trans.amount
+            });
             bootstrap.Modal.getInstance(document.getElementById('approvalModal')).hide();
             saveAndRefresh();
             showSuccessAnimation();
@@ -580,8 +1277,14 @@
 
     function updateCatDropdown() {
         const type = document.getElementById('t-type').value;
-        document.getElementById('t-cat').innerHTML = categories.filter(c => c.type === type)
-            .map(c => `<option value="${c.name}">${c.name}</option>`).join('');
+        const catSelect = document.getElementById('t-cat');
+        const filteredCats = categories.filter(c => c.type === type);
+        
+        if (filteredCats.length > 0) {
+            catSelect.innerHTML = filteredCats.map(c => `<option value="${c.name}">${c.name}</option>`).join('');
+        } else {
+            catSelect.innerHTML = `<option value="">Aucune catégorie</option>`;
+        }
     }
 
     function applyFilteredCategory(type) {
@@ -616,25 +1319,44 @@
             floatingBtn.style.display = 'none';
         }
 
-        document.getElementById('t-member').innerHTML = members.map(m => `<option value="${m}">${m}</option>`).join('');
+        // Afficher le bouton de partage si des transactions existent
+        if (transactions.length > 0) {
+            document.getElementById('floating-whatsapp-btn').style.display = 'block';
+        } else {
+            document.getElementById('floating-whatsapp-btn').style.display = 'none';
+        }
+
+        // Mise à jour des selects
+        if (members.length > 0) {
+            document.getElementById('t-member').innerHTML = members.map(m => `<option value="${m}">${m}</option>`).join('');
+        }
+        
         const currentFMember = document.getElementById('filter-member').value;
-        document.getElementById('filter-member').innerHTML = `<option value="all">Tous les membres</option>` + members.map(m => `<option value="${m}">${m}</option>`).join('');
+        document.getElementById('filter-member').innerHTML = `<option value="all">Tous les membres</option>` + 
+            members.map(m => `<option value="${m}">${m}</option>`).join('');
         document.getElementById('filter-member').value = currentFMember;
 
         const revFilter = document.getElementById('filter-cat-revenu');
         const depFilter = document.getElementById('filter-cat-depense');
-        revFilter.innerHTML = `<option value="all">Toutes les recettes</option>` + categories.filter(c => c.type === 'Revenu').map(c => `<option value="${c.name}">${c.name}</option>`).join('');
-        depFilter.innerHTML = `<option value="all">Toutes les charges</option>` + categories.filter(c => c.type === 'Dépense').map(c => `<option value="${c.name}">${c.name}</option>`).join('');
+        
+        revFilter.innerHTML = `<option value="all">Toutes les recettes</option>` + 
+            categories.filter(c => c.type === 'Revenu').map(c => `<option value="${c.name}">${c.name}</option>`).join('');
+        depFilter.innerHTML = `<option value="all">Toutes les charges</option>` + 
+            categories.filter(c => c.type === 'Dépense').map(c => `<option value="${c.name}">${c.name}</option>`).join('');
         
         updateCatDropdown();
 
+        // Filtrage des transactions
         const fPeriod = document.getElementById('filter-period').value;
         const fMember = document.getElementById('filter-member').value;
         const now = new Date();
 
         let filtered = transactions.filter(t => {
-            const tDate = new Date(t.id);
+            if (!t || !t.id) return false;
+            
+            const tDate = new Date(t.timestamp || t.id);
             let matchPeriod = true;
+            
             if(fPeriod === 'today') matchPeriod = tDate.toDateString() === now.toDateString();
             if(fPeriod === 'week') matchPeriod = (now - tDate) < 7 * 24 * 60 * 60 * 1000;
             if(fPeriod === 'month') matchPeriod = tDate.getMonth() === now.getMonth() && tDate.getFullYear() === now.getFullYear();
@@ -647,29 +1369,45 @@
             return matchPeriod && matchMember && matchType && matchCat;
         });
 
+        // Affichage du tableau
         const tbody = document.getElementById('transaction-table-body');
-        tbody.innerHTML = filtered.map(t => `
-            <tr>
-                <td><small>${t.date}</small></td>
-                <td><span class="badge bg-secondary">${t.member}</span></td>
-                <td>${t.category}</td>
-                <td><span class="badge ${t.type === 'Revenu' ? 'bg-success' : 'bg-danger'}">${t.type}</span></td>
-                <td class="fw-bold">${t.amount} CFA</td>
-                <td><button class="btn btn-sm btn-danger" onclick="deleteTransaction(${t.id})">🗑️</button></td>
-            </tr>
-        `).join('');
+        if (filtered.length > 0) {
+            tbody.innerHTML = filtered.map(t => {
+                const displayDate = t.timestamp ? formatTimestamp(t.timestamp) : formatDateForDisplay(t.date);
+                return `
+                <tr class="transaction-row" onclick="showTransactionDetails('${t.id}')">
+                    <td><small>${displayDate}</small></td>
+                    <td><span class="badge bg-secondary">${t.member || 'Inconnu'}</span></td>
+                    <td>${t.category || 'Non catégorisé'}</td>
+                    <td><small>${t.motif || 'Non spécifié'}</small></td>
+                    <td><span class="badge ${t.type === 'Revenu' ? 'bg-success' : 'bg-danger'}">${t.type || 'Dépense'}</span></td>
+                    <td class="fw-bold">${(t.amount || 0).toLocaleString()} CFA</td>
+                    <td><button class="btn btn-sm btn-danger" onclick="event.stopPropagation(); deleteTransaction('${t.id}')">🗑️</button></td>
+                </tr>
+            `}).join('');
+        } else {
+            tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted">Aucune transaction</td></tr>';
+        }
 
-        let totalFiltré = filtered.reduce((acc, t) => t.type === 'Revenu' ? acc + t.amount : acc - t.amount, 0);
+        // Calcul des totaux
+        let totalFiltré = filtered.reduce((acc, t) => {
+            const amount = parseFloat(t.amount) || 0;
+            return t.type === 'Revenu' ? acc + amount : acc - amount;
+        }, 0);
+        
         const badge = document.getElementById('filtered-total-badge');
-        badge.innerText = `Total filtré: ${totalFiltré} CFA`;
+        badge.innerText = `Total filtré: ${totalFiltré.toLocaleString()} CFA`;
         badge.className = `badge ms-2 ${totalFiltré >= 0 ? 'bg-success' : 'bg-danger'}`;
 
-        const totalRev = transactions.filter(t => t.type === 'Revenu').reduce((acc, t) => acc + parseFloat(t.amount), 0);
-        const totalDep = transactions.filter(t => t.type === 'Dépense').reduce((acc, t) => acc + parseFloat(t.amount), 0);
+        const totalRev = transactions.filter(t => t.type === 'Revenu')
+            .reduce((acc, t) => acc + (parseFloat(t.amount) || 0), 0);
+        const totalDep = transactions.filter(t => t.type === 'Dépense')
+            .reduce((acc, t) => acc + (parseFloat(t.amount) || 0), 0);
         const solde = totalRev - totalDep;
 
         const labelSolde = document.getElementById('label-solde');
         const cardSolde = document.getElementById('card-solde');
+        
         if (solde < 0) {
             labelSolde.innerText = "Dette";
             cardSolde.classList.add('bg-dette');
@@ -678,9 +1416,9 @@
             cardSolde.classList.remove('bg-dette');
         }
         
-        document.getElementById('display-solde').innerText = solde + " CFA";
-        document.getElementById('display-revenus-total').innerText = totalRev + " CFA";
-        document.getElementById('display-depenses').innerText = totalDep + " CFA";
+        document.getElementById('display-solde').innerText = solde.toLocaleString() + " CFA";
+        document.getElementById('display-revenus-total').innerText = totalRev.toLocaleString() + " CFA";
+        document.getElementById('display-depenses').innerText = totalDep.toLocaleString() + " CFA";
 
         updateChart(totalRev, totalDep);
         updateSyncDisplay();
@@ -700,15 +1438,55 @@
                     backgroundColor: ['#3498db', '#e74c3c']
                 }]
             },
-            options: { responsive: true, scales: { y: { beginAtZero: true } } }
+            options: { 
+                responsive: true, 
+                scales: { 
+                    y: { 
+                        beginAtZero: true,
+                        ticks: {
+                            callback: function(value) {
+                                return value.toLocaleString() + ' CFA';
+                            }
+                        }
+                    } 
+                }
+            }
         });
     }
 
     // Gestion du retour en ligne automatique
-    window.addEventListener('online', processSyncQueue);
+    window.addEventListener('online', () => {
+        console.log("Connexion rétablie, synchronisation...");
+        processSyncQueue();
+    });
 
-    syncAll();
-    watchCloudUpdates();
+    // Rendre les fonctions accessibles globalement
+    window.addMember = addMember;
+    window.addCategory = addCategory;
+    window.deleteTransaction = deleteTransaction;
+    window.clearAllHistory = clearAllHistory;
+    window.resetAllData = resetAllData;
+    window.openApprovalModal = openApprovalModal;
+    window.approveRequest = approveRequest;
+    window.rejectRequest = rejectRequest;
+    window.updateCatDropdown = updateCatDropdown;
+    window.applyFilteredCategory = applyFilteredCategory;
+    window.renderAll = renderAll;
+    window.syncAll = syncAll;
+    window.triggerPWAInstall = triggerPWAInstall;
+    window.showTransactionDetails = showTransactionDetails;
+    window.copyToWhatsApp = copyToWhatsApp;
+    window.shareViaWhatsApp = shareViaWhatsApp;
+    window.showGlobalBalance = showGlobalBalance;
+    window.copyGlobalBalanceToWhatsApp = copyGlobalBalanceToWhatsApp;
+    window.shareGlobalBalance = shareGlobalBalance;
+    window.copyAllTransactionsToWhatsApp = copyAllTransactionsToWhatsApp;
+
+    // Initialisation
+    setTimeout(() => {
+        syncAll();
+        watchCloudUpdates();
+    }, 1000);
 </script>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
